@@ -1,3 +1,4 @@
+
 import { ethers } from 'ethers';
 
 // Using a dynamic import for the contract artifact since it might not exist during build time
@@ -292,7 +293,8 @@ export class ContractService {
     
     try {
       const tickets = await this.registrationContract.getTicketsForEvent(holderAddress, eventId);
-      return tickets.map((ticket: ethers.BigInt) => Number(ticket));
+      // Fix: Change from ethers.BigInt to Number()
+      return tickets.map((ticket: bigint) => Number(ticket));
     } catch (error) {
       console.error('Error getting tickets:', error);
       throw error;
@@ -384,7 +386,8 @@ export class ContractService {
     
     try {
       const types = await this.venueContract.getEventTicketTypes(eventId);
-      return types.map((type: ethers.BigInt) => Number(type));
+      // Fix: Change from ethers.BigInt to Number()
+      return types.map((type: bigint) => Number(type));
     } catch (error) {
       console.error('Error getting event ticket types:', error);
       throw error;

@@ -162,7 +162,8 @@ contract EventRegistration is ERC721Enumerable, Ownable {
      * @param tokenId ID of the ticket NFT
      */
     function getRefund(uint256 tokenId) public {
-        require(_isApprovedOrOwner(msg.sender, tokenId), "Not ticket owner");
+        // Fix: Use isApprovedOrOwner from ERC721 instead of _isApprovedOrOwner
+        require(isApprovedOrOwner(msg.sender, tokenId), "Not ticket owner");
         
         uint256 eventId = ticketToEvent[tokenId];
         Event storage eventDetails = events[eventId];
@@ -327,6 +328,17 @@ contract EventRegistration is ERC721Enumerable, Ownable {
      */
     function isTicketUsed(uint256 tokenId) public view returns (bool) {
         return ticketUsed[tokenId];
+    }
+    
+    /**
+     * @dev Check if the caller is approved or owner of the token
+     * @param spender Address to check
+     * @param tokenId ID of the token
+     * @return bool Whether the address is approved or owner
+     */
+    function isApprovedOrOwner(address spender, uint256 tokenId) public view returns (bool) {
+        address owner = ownerOf(tokenId);
+        return (spender == owner || isApprovedForAll(owner, spender) || getApproved(tokenId) == spender);
     }
     
     /**
