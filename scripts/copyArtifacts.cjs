@@ -13,6 +13,26 @@ function ensureDirectoryExistence(dirPath) {
   }
 }
 
+// Copy a contract artifact
+function copyContractArtifact(contractName) {
+  const contractDir = path.join(artifactsDir, `${contractName}.sol`);
+  const targetDir = path.join(publicArtifactsDir, `${contractName}.sol`);
+  ensureDirectoryExistence(targetDir);
+
+  // Copy the main contract artifact
+  const artifactFile = path.join(contractDir, `${contractName}.json`);
+  const targetFile = path.join(targetDir, `${contractName}.json`);
+
+  if (!fs.existsSync(artifactFile)) {
+    console.error(`Contract artifact for ${contractName} doesn't exist. Run 'npx hardhat compile' first.`);
+    return false;
+  }
+
+  fs.copyFileSync(artifactFile, targetFile);
+  console.log(`Copied ${artifactFile} to ${targetFile}`);
+  return true;
+}
+
 // Copy the artifacts to the public folder
 function copyArtifacts() {
   try {
@@ -23,22 +43,13 @@ function copyArtifacts() {
 
     ensureDirectoryExistence(publicArtifactsDir);
 
-    // Copy EventRegistration artifacts
-    const contractDir = path.join(artifactsDir, 'EventRegistration.sol');
-    const targetDir = path.join(publicArtifactsDir, 'EventRegistration.sol');
-    ensureDirectoryExistence(targetDir);
-
-    // Copy the main contract artifact
-    const artifactFile = path.join(contractDir, 'EventRegistration.json');
-    const targetFile = path.join(targetDir, 'EventRegistration.json');
-
-    if (!fs.existsSync(artifactFile)) {
-      console.error("Contract artifact doesn't exist. Run 'npx hardhat compile' first.");
+    // Copy contract artifacts
+    const success1 = copyContractArtifact('EventRegistration');
+    const success2 = copyContractArtifact('EventVenue');
+    
+    if (!success1 || !success2) {
       process.exit(1);
     }
-
-    fs.copyFileSync(artifactFile, targetFile);
-    console.log(`Copied ${artifactFile} to ${targetFile}`);
   } catch (error) {
     console.error('Error copying artifacts:', error);
     process.exit(1);

@@ -6,6 +6,10 @@ const EventRegistrationArtifact = {
   abi: [] // This will be populated at runtime
 };
 
+const EventVenueArtifact = {
+  abi: [] // This will be populated at runtime
+};
+
 export interface EventDetails {
   eventId: number;
   name: string;
@@ -14,37 +18,63 @@ export interface EventDetails {
   ticketsSold: number;
   eventDate: Date;
   active: boolean;
+  allowTransfers: boolean;
+  organizer: string;
+}
+
+export interface VenueDetails {
+  venueId: number;
+  name: string;
+  location: string;
+  capacity: number;
+  verified: boolean;
+  owner: string;
+}
+
+export interface TicketTypeDetails {
+  id: number;
+  eventId: number;
+  name: string;
+  price: string;
+  supply: number;
+  sold: number;
+  active: boolean;
 }
 
 export class ContractService {
   private provider: ethers.BrowserProvider;
   private signer: ethers.Signer | null = null;
-  private contract: ethers.Contract | null = null;
-  private contractAddress: string | null = null;
+  private registrationContract: ethers.Contract | null = null;
+  private venueContract: ethers.Contract | null = null;
+  private registrationAddress: string | null = null;
+  private venueAddress: string | null = null;
   
-  constructor(contractAddress?: string) {
+  constructor(registrationAddress?: string, venueAddress?: string) {
     if (window.ethereum) {
       this.provider = new ethers.BrowserProvider(window.ethereum);
-      if (contractAddress) {
-        this.contractAddress = contractAddress;
+      if (registrationAddress) {
+        this.registrationAddress = registrationAddress;
+      }
+      if (venueAddress) {
+        this.venueAddress = venueAddress;
       }
     } else {
       throw new Error('Ethereum provider not found. Please install MetaMask.');
     }
   }
 
-  async loadContractArtifact() {
+  async loadContractArtifact(contractName: string) {
     try {
-      // Try to fetch the artifact from the public folder instead
-      const response = await fetch('/artifacts/contracts/EventRegistration.sol/EventRegistration.json');
+      // Try to fetch the artifact from the public folder
+      const response = await fetch(`/artifacts/contracts/${contractName}.sol/${contractName}.json`);
       if (response.ok) {
         return await response.json();
       } else {
-        console.error('Failed to load contract artifact from public folder');
+        console.error(`Failed to load contract artifact for ${contractName} from public folder`);
         return { abi: [] };
       }
     } catch (error) {
-      console.error('Error in loadContractArtifact:', error);
+      console.error(`Error loading ${contractName} artifact:`, error);
       return { abi: [] };
     }
   }
@@ -53,13 +83,23 @@ export class ContractService {
     try {
       this.signer = await this.provider.getSigner();
       
-      if (this.contractAddress && this.signer) {
-        // Load the contract ABI dynamically
-        const artifact = await this.loadContractArtifact();
+      if (this.registrationAddress && this.signer) {
+        // Load the contract ABIs dynamically
+        const registrationArtifact = await this.loadContractArtifact('EventRegistration');
         
-        this.contract = new ethers.Contract(
-          this.contractAddress,
-          artifact.abi,
+        this.registrationContract = new ethers.Contract(
+          this.registrationAddress,
+          registrationArtifact.abi,
+          this.signer
+        );
+      }
+      
+      if (this.venueAddress && this.signer) {
+        const venueArtifact = await this.loadContractArtifact('EventVenue');
+        
+        this.venueContract = new ethers.Contract(
+          this.venueAddress,
+          venueArtifact.abi,
           this.signer
         );
       }
@@ -107,9 +147,10 @@ export class ContractService {
     name: string,
     ticketPrice: string,
     totalTickets: number,
-    eventDate: Date
+    eventDate: Date,
+    allowTransfers: boolean = true
   ): Promise<any> {
-    if (!this.contract) {
+    if (!this.registrationContract) {
       throw new Error('Contract not initialized');
     }
     
@@ -117,11 +158,12 @@ export class ContractService {
       const priceInWei = ethers.parseEther(ticketPrice);
       const timestampInSeconds = Math.floor(eventDate.getTime() / 1000);
       
-      const tx = await this.contract.createEvent(
+      const tx = await this.registrationContract.createEvent(
         name,
         priceInWei,
         totalTickets,
-        timestampInSeconds
+        timestampInSeconds,
+        allowTransfers
       );
       
       return await tx.wait();
@@ -132,13 +174,13 @@ export class ContractService {
   }
 
   async purchaseTicket(eventId: number, price: string): Promise<any> {
-    if (!this.contract) {
+    if (!this.registrationContract) {
       throw new Error('Contract not initialized');
     }
     
     try {
       const priceInWei = ethers.parseEther(price);
-      const tx = await this.contract.purchaseTicket(eventId, {
+      const tx = await this.registrationContract.purchaseTicket(eventId, {
         value: priceInWei
       });
       
@@ -148,15 +190,70 @@ export class ContractService {
       throw error;
     }
   }
-
-  async getEvent(eventId: number): Promise<EventDetails> {
-    if (!this.contract) {
+  
+  async cancelEvent(eventId: number): Promise<any> {
+    if (!this.registrationContract) {
       throw new Error('Contract not initialized');
     }
     
     try {
-      // Convert eventId to string to fix the type error
-      const event = await this.contract.getEvent(eventId.toString());
+      const tx = await this.registrationContract.cancelEvent(eventId);
+      return await tx.wait();
+    } catch (error) {
+      console.error('Error cancelling event:', error);
+      throw error;
+    }
+  }
+  
+  async getRefund(tokenId: number): Promise<any> {
+    if (!this.registrationContract) {
+      throw new Error('Contract not initialized');
+    }
+    
+    try {
+      const tx = await this.registrationContract.getRefund(tokenId);
+      return await tx.wait();
+    } catch (error) {
+      console.error('Error getting refund:', error);
+      throw error;
+    }
+  }
+  
+  async withdrawProceeds(eventId: number): Promise<any> {
+    if (!this.registrationContract) {
+      throw new Error('Contract not initialized');
+    }
+    
+    try {
+      const tx = await this.registrationContract.withdrawProceeds(eventId);
+      return await tx.wait();
+    } catch (error) {
+      console.error('Error withdrawing proceeds:', error);
+      throw error;
+    }
+  }
+  
+  async useTicket(tokenId: number): Promise<any> {
+    if (!this.registrationContract) {
+      throw new Error('Contract not initialized');
+    }
+    
+    try {
+      const tx = await this.registrationContract.useTicket(tokenId);
+      return await tx.wait();
+    } catch (error) {
+      console.error('Error using ticket:', error);
+      throw error;
+    }
+  }
+
+  async getEvent(eventId: number): Promise<EventDetails> {
+    if (!this.registrationContract) {
+      throw new Error('Contract not initialized');
+    }
+    
+    try {
+      const event = await this.registrationContract.getEvent(eventId);
       
       return {
         eventId,
@@ -165,7 +262,9 @@ export class ContractService {
         totalTickets: Number(event[2]),
         ticketsSold: Number(event[3]),
         eventDate: new Date(Number(event[4]) * 1000),
-        active: event[5]
+        active: event[5],
+        allowTransfers: event[6],
+        organizer: event[7]
       };
     } catch (error) {
       console.error('Error getting event:', error);
@@ -174,30 +273,150 @@ export class ContractService {
   }
 
   async verifyTicket(holderAddress: string, eventId: number): Promise<boolean> {
-    if (!this.contract) {
+    if (!this.registrationContract) {
       throw new Error('Contract not initialized');
     }
     
     try {
-      return await this.contract.verifyTicket(holderAddress, eventId);
+      return await this.registrationContract.verifyTicket(holderAddress, eventId);
     } catch (error) {
       console.error('Error verifying ticket:', error);
       throw error;
     }
   }
+  
+  async getTicketsForEvent(holderAddress: string, eventId: number): Promise<number[]> {
+    if (!this.registrationContract) {
+      throw new Error('Contract not initialized');
+    }
+    
+    try {
+      const tickets = await this.registrationContract.getTicketsForEvent(holderAddress, eventId);
+      return tickets.map((ticket: ethers.BigInt) => Number(ticket));
+    } catch (error) {
+      console.error('Error getting tickets:', error);
+      throw error;
+    }
+  }
+  
+  async isTicketUsed(tokenId: number): Promise<boolean> {
+    if (!this.registrationContract) {
+      throw new Error('Contract not initialized');
+    }
+    
+    try {
+      return await this.registrationContract.isTicketUsed(tokenId);
+    } catch (error) {
+      console.error('Error checking if ticket is used:', error);
+      throw error;
+    }
+  }
+  
+  async addVenue(name: string, location: string, capacity: number): Promise<any> {
+    if (!this.venueContract) {
+      throw new Error('Venue contract not initialized');
+    }
+    
+    try {
+      const tx = await this.venueContract.addVenue(name, location, capacity);
+      return await tx.wait();
+    } catch (error) {
+      console.error('Error adding venue:', error);
+      throw error;
+    }
+  }
+  
+  async createTicketType(eventId: number, name: string, price: string, supply: number): Promise<any> {
+    if (!this.venueContract) {
+      throw new Error('Venue contract not initialized');
+    }
+    
+    try {
+      const priceInWei = ethers.parseEther(price);
+      const tx = await this.venueContract.createTicketType(eventId, name, priceInWei, supply);
+      return await tx.wait();
+    } catch (error) {
+      console.error('Error creating ticket type:', error);
+      throw error;
+    }
+  }
+  
+  async assignVenueToEvent(eventId: number, venueId: number): Promise<any> {
+    if (!this.venueContract) {
+      throw new Error('Venue contract not initialized');
+    }
+    
+    try {
+      const tx = await this.venueContract.assignVenueToEvent(eventId, venueId);
+      return await tx.wait();
+    } catch (error) {
+      console.error('Error assigning venue to event:', error);
+      throw error;
+    }
+  }
+  
+  async getEventVenue(eventId: number): Promise<VenueDetails> {
+    if (!this.venueContract) {
+      throw new Error('Venue contract not initialized');
+    }
+    
+    try {
+      const venue = await this.venueContract.getEventVenue(eventId);
+      
+      return {
+        venueId: Number(venue[0]),
+        name: venue[1],
+        location: venue[2],
+        capacity: Number(venue[3]),
+        verified: venue[4],
+        owner: venue[5]
+      };
+    } catch (error) {
+      console.error('Error getting event venue:', error);
+      throw error;
+    }
+  }
+  
+  async getEventTicketTypes(eventId: number): Promise<number[]> {
+    if (!this.venueContract) {
+      throw new Error('Venue contract not initialized');
+    }
+    
+    try {
+      const types = await this.venueContract.getEventTicketTypes(eventId);
+      return types.map((type: ethers.BigInt) => Number(type));
+    } catch (error) {
+      console.error('Error getting event ticket types:', error);
+      throw error;
+    }
+  }
 
-  async setContractAddress(address: string): Promise<void> {
-    this.contractAddress = address;
+  async setContractAddresses(registrationAddress: string, venueAddress?: string): Promise<void> {
+    this.registrationAddress = registrationAddress;
+    
+    if (venueAddress) {
+      this.venueAddress = venueAddress;
+    }
     
     if (this.signer) {
-      // Load the contract ABI dynamically
-      const artifact = await this.loadContractArtifact();
+      // Load the contract ABIs dynamically
+      const registrationArtifact = await this.loadContractArtifact('EventRegistration');
       
-      this.contract = new ethers.Contract(
-        address,
-        artifact.abi,
+      this.registrationContract = new ethers.Contract(
+        registrationAddress,
+        registrationArtifact.abi,
         this.signer
       );
+      
+      if (venueAddress) {
+        const venueArtifact = await this.loadContractArtifact('EventVenue');
+        
+        this.venueContract = new ethers.Contract(
+          venueAddress,
+          venueArtifact.abi,
+          this.signer
+        );
+      }
     }
   }
 }

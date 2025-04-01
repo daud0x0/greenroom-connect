@@ -9,9 +9,23 @@ async function main() {
 
   await eventRegistration.waitForDeployment();
   
-  const address = await eventRegistration.getAddress();
-  console.log("EventRegistration deployed to:", address);
-  console.log("Copy this address and use it in your application!");
+  const registrationAddress = await eventRegistration.getAddress();
+  console.log("EventRegistration deployed to:", registrationAddress);
+  
+  console.log("Deploying EventVenue contract...");
+  
+  const EventVenue = await hre.ethers.getContractFactory("EventVenue");
+  const eventVenue = await EventVenue.deploy(registrationAddress);
+  
+  await eventVenue.waitForDeployment();
+  
+  const venueAddress = await eventVenue.getAddress();
+  console.log("EventVenue deployed to:", venueAddress);
+  
+  console.log("Contract deployment complete!");
+  console.log("You need to copy these addresses and use them in your application:");
+  console.log("EventRegistration:", registrationAddress);
+  console.log("EventVenue:", venueAddress);
 }
 
 main()
