@@ -2,17 +2,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 
 /**
  * @title EventRegistration
  * @dev Contract for managing event registrations and issuing NFT tickets
  */
-contract EventRegistration is ERC721, Ownable {
-    using Counters for Counters.Counter;
-    Counters.Counter private _tokenIds;
+contract EventRegistration is ERC721Enumerable, Ownable {
+    // Simple counters to replace the deprecated Counters utility
+    uint256 private _currentTokenId;
+    uint256 private _currentEventId;
 
     // Event struct to store event information
     struct Event {
@@ -31,15 +31,16 @@ contract EventRegistration is ERC721, Ownable {
     // Mapping from tokenId to eventId
     mapping(uint256 => uint256) public ticketToEvent;
 
-    // Counter for event IDs
-    Counters.Counter private _eventIds;
-
     // Events
     event EventCreated(uint256 eventId, string name, uint256 ticketPrice, uint256 totalTickets, uint256 eventDate);
     event TicketPurchased(uint256 eventId, address buyer, uint256 tokenId);
     event EventCancelled(uint256 eventId);
 
-    constructor() ERC721("EventTicket", "EVTX") Ownable(msg.sender) {}
+    constructor() ERC721("EventTicket", "EVTX") Ownable(msg.sender) {
+        // Initialize counters
+        _currentTokenId = 0;
+        _currentEventId = 0;
+    }
 
     /**
      * @dev Creates a new event
@@ -50,8 +51,8 @@ contract EventRegistration is ERC721, Ownable {
         uint256 totalTickets,
         uint256 eventDate
     ) public onlyOwner {
-        _eventIds.increment();
-        uint256 newEventId = _eventIds.current();
+        _currentEventId += 1;
+        uint256 newEventId = _currentEventId;
         
         events[newEventId] = Event({
             eventId: newEventId,
@@ -77,8 +78,8 @@ contract EventRegistration is ERC721, Ownable {
         require(msg.value >= eventDetails.ticketPrice, "Insufficient payment");
         
         // Mint a new NFT ticket
-        _tokenIds.increment();
-        uint256 newTokenId = _tokenIds.current();
+        _currentTokenId += 1;
+        uint256 newTokenId = _currentTokenId;
         _mint(msg.sender, newTokenId);
         
         // Update ticket mapping and event details
