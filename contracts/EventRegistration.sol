@@ -1,3 +1,4 @@
+
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -361,3 +362,4 @@ contract EventRegistration is ERC721Enumerable, Ownable {
         return super._update(from, to, tokenId);
     }
 }
+

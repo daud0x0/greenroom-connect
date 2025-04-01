@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
-import CreateEventForm from '@/components/create-event/CreateEventForm';
+import { CreateEventForm } from '@/components/create-event/CreateEventForm';
 import contractService from '@/services/contractService';
 import { useToast } from "@/hooks/use-toast";
 
