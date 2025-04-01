@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -162,7 +161,6 @@ contract EventRegistration is ERC721Enumerable, Ownable {
      * @param tokenId ID of the ticket NFT
      */
     function getRefund(uint256 tokenId) public {
-        // Fix: Use isApprovedOrOwner from ERC721 instead of _isApprovedOrOwner
         require(isApprovedOrOwner(msg.sender, tokenId), "Not ticket owner");
         
         uint256 eventId = ticketToEvent[tokenId];
@@ -342,16 +340,13 @@ contract EventRegistration is ERC721Enumerable, Ownable {
     }
     
     /**
-     * @dev Override of _beforeTokenTransfer to enforce transfer restrictions
+     * @dev Hook that is called before any token transfer
      */
-    function _beforeTokenTransfer(
+    function _update(
         address from,
         address to,
-        uint256 tokenId,
-        uint256 batchSize
-    ) internal override {
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
-        
+        uint256 tokenId
+    ) internal virtual override returns (address) {
         // Skip checks for minting and burning
         if (from != address(0) && to != address(0)) {
             uint256 eventId = ticketToEvent[tokenId];
@@ -362,5 +357,7 @@ contract EventRegistration is ERC721Enumerable, Ownable {
             
             emit TicketTransferred(tokenId, from, to);
         }
+        
+        return super._update(from, to, tokenId);
     }
 }
